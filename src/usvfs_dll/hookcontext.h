@@ -26,6 +26,7 @@ along with usvfs. If not, see <http://www.gnu.org/licenses/>.
 #include "tree_container.h"
 #include <directory_tree.h>
 #include <exceptionex.h>
+#include <mutex>
 #include <usvfsparameters.h>
 #include <usvfsparametersprivate.h>
 #include <winapi.h>
@@ -105,6 +106,9 @@ public:
   template <typename T>
   T& customData(DataIDT id) const
   {
+    // may be called concurrently under the shared context lock; the lazy
+    // insert must be serialized
+    std::lock_guard<std::mutex> customDataLock(m_CustomDataMutex);
     auto iter = m_CustomData.find(id);
     if (iter == m_CustomData.end()) {
       iter = m_CustomData.insert(std::make_pair(id, T())).first;
@@ -164,6 +168,7 @@ private:
   std::vector<std::future<int>> m_Futures;
 
   mutable std::map<DataIDT, boost::any> m_CustomData;
+  mutable std::mutex m_CustomDataMutex;
 
   HMODULE m_DLLModule;
 

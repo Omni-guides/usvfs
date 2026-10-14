@@ -21,9 +21,14 @@ along with usvfs. If not, see <http://www.gnu.org/licenses/>.
 #include "hookmanager.h"
 #include "../thooklib/ttrampolinepool.h"
 #include "../thooklib/utility.h"
+#include "config.h"
 #include "exceptionex.h"
 #include "hooks/kernel32.h"
+#include "hooks/kernel32_impl.h"
 #include "hooks/ntdll.h"
+#include "metacache.h"
+#include "readcache.h"
+#include "trace.h"
 #include "usvfs.h"
 #include <VersionHelpers.h>
 #include <directory_tree.h>
@@ -60,7 +65,21 @@ HookManager::HookManager(const usvfsParameters& params, HMODULE module)
       shared::string_cast<std::string>(winapi::ex::wide::getWindowsBuildLab(true))
           .c_str());
 
+  {
+    // harness trace (USVFS_TRACE); before any hook exists
+    const std::string traceMsg = trace::init();
+    if (!traceMsg.empty())
+      spdlog::get("usvfs")->info("{}", traceMsg);
+  }
+  readcache::init();
+  readcache::setForgetCallback(forgetWorkerHandle);
+  metacache::init();
+  config::logEffective();
+
   initHooks();
+
+  // walks the virtual tree in the background (game process only by default)
+  metacache::startPrewarm();
 
   if (params.debugMode) {
     while (!::IsDebuggerPresent()) {
@@ -73,6 +92,10 @@ HookManager::HookManager(const usvfsParameters& params, HMODULE module)
 HookManager::~HookManager()
 {
   spdlog::get("hooks")->debug("end hook of process {}", GetCurrentProcessId());
+  // stops the read cache workers; not called from DllMain, so waiting is safe
+  metacache::shutdown();
+  readcache::shutdown();
+  trace::shutdown();
   removeHooks();
   m_Context.unregisterCurrentProcess();
 }
@@ -285,6 +308,11 @@ void HookManager::initHooks()
   installHook(kbaseMod, k32Mod, "GetFullPathNameW", hook_GetFullPathNameW);
 
   installHook(kbaseMod, k32Mod, "FindFirstFileExW", hook_FindFirstFileExW);
+  if (trace::enabled() || metacache::enumFrontEnabled()) {
+    // harness trace / enumeration front cache: see the app's FindNext/FindClose calls
+    installHook(kbaseMod, k32Mod, "FindNextFileW", hook_FindNextFileW);
+    installHook(kbaseMod, k32Mod, "FindClose", hook_FindClose);
+  }
 
   HMODULE ntdllMod = GetModuleHandleA("ntdll.dll");
   spdlog::get("usvfs")->debug("ntdll.dll at {0:x}",
@@ -301,6 +329,8 @@ void HookManager::initHooks()
   installHook(ntdllMod, nullptr, "NtOpenFile", hook_NtOpenFile);
   installHook(ntdllMod, nullptr, "NtCreateFile", hook_NtCreateFile);
   installHook(ntdllMod, nullptr, "NtClose", hook_NtClose);
+  installHook(ntdllMod, nullptr, "NtReadFile", hook_NtReadFile);
+  installHook(ntdllMod, nullptr, "NtSetInformationFile", hook_NtSetInformationFile);
   installHook(ntdllMod, nullptr, "NtTerminateProcess", hook_NtTerminateProcess);
 
   installHook(kbaseMod, k32Mod, "LoadLibraryExA", hook_LoadLibraryExA);

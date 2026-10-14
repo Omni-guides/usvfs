@@ -37,6 +37,7 @@ add_subdirectory(src/usvfs_helper)
 
 add_subdirectory(src/usvfs_dll)
 add_subdirectory(src/usvfs_proxy)
+add_subdirectory(src/replay)
 
 configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/config.cmake.in
   "${CMAKE_CURRENT_BINARY_DIR}/usvfsConfig.cmake"

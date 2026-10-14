@@ -35,6 +35,9 @@ NtQueryInformationByName_type NtQueryInformationByName;
 NtOpenFile_type NtOpenFile;
 NtCreateFile_type NtCreateFile;
 NtClose_type NtClose;
+NtReadFile_type NtReadFile;
+NtSetInformationFile_type NtSetInformationFile;
+NtQueryVolumeInformationFile_type NtQueryVolumeInformationFile;
 RtlDoesFileExists_U_type RtlDoesFileExists_U;
 RtlDosPathNameToRelativeNtPathName_U_WithStatus_type
     RtlDosPathNameToRelativeNtPathName_U_WithStatus;
@@ -59,6 +62,9 @@ void ntdll_declarations_init()
     LOAD_EXT(ntDLLMod, NtCreateFile);
     LOAD_EXT(ntDLLMod, NtOpenFile);
     LOAD_EXT(ntDLLMod, NtClose);
+    LOAD_EXT(ntDLLMod, NtReadFile);
+    LOAD_EXT(ntDLLMod, NtSetInformationFile);
+    LOAD_EXT(ntDLLMod, NtQueryVolumeInformationFile);
     LOAD_EXT(ntDLLMod, RtlDoesFileExists_U);
     LOAD_EXT(ntDLLMod, RtlDosPathNameToRelativeNtPathName_U_WithStatus);
     LOAD_EXT(ntDLLMod, RtlReleaseRelativeName);

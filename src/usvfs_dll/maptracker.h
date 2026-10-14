@@ -2,6 +2,7 @@
 
 #include "hookcallcontext.h"
 #include "hookcontext.h"
+#include "metacache.h"
 #include "stringcast.h"
 
 namespace usvfs
@@ -89,6 +90,14 @@ private:
 extern MapTracker k32DeleteTracker;
 extern MapTracker k32FakeDirTracker;
 
+// results derived from the mappings are stale once they change: bumped before
+// and after the change
+struct MappingChangeGuard
+{
+  MappingChangeGuard() { usvfs::metacache::noteMappingChange(); }
+  ~MappingChangeGuard() { usvfs::metacache::noteMappingChange(); }
+};
+
 class RerouteW
 {
   std::wstring m_Buffer{};
@@ -138,6 +147,7 @@ public:
 
   void insertMapping(const HookContext::Ptr& context, bool directory = false)
   {
+    MappingChangeGuard mappingChange;
     if (directory) {
       addDirectoryMapping(context, m_RealPath, m_FileName);
 
@@ -165,6 +175,7 @@ public:
 
   void removeMapping(const HookContext::ConstPtr& readContext, bool directory = false)
   {
+    MappingChangeGuard mappingChange;
     bool addToDelete     = false;
     bool dontAddToDelete = false;
 
@@ -223,6 +234,7 @@ public:
 
   static bool createFakePath(fs::path path, LPSECURITY_ATTRIBUTES securityAttributes)
   {
+    MappingChangeGuard mappingChange;
     // sanity and guaranteed recursion end:
     if (!path.has_relative_path())
       throw shared::windows_error(
@@ -263,6 +275,7 @@ public:
                                   const fs::path& originalPath,
                                   const fs::path& reroutedPath)
   {
+    MappingChangeGuard mappingChange;
     if (originalPath.empty() || reroutedPath.empty()) {
       spdlog::get("hooks")->error("RerouteW::addDirectoryMapping failed: {}, {}",
                                   shared::string_cast<std::string>(
@@ -565,7 +578,7 @@ public:
     // check virtualized paths
     DWORD virtAttr = GetFileAttributesW(lpFileName);
     bool isFile    = virtAttr != INVALID_FILE_ATTRIBUTES &&
-                  (virtAttr & FILE_ATTRIBUTE_DIRECTORY) == 0;
+                     (virtAttr & FILE_ATTRIBUTE_DIRECTORY) == 0;
     m_isDir =
         virtAttr != INVALID_FILE_ATTRIBUTES && (virtAttr & FILE_ATTRIBUTE_DIRECTORY);
 
